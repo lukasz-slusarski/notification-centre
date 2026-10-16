@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.10.4] - 2026-10-16
+### Fixed
+- **Wyzwalacz „Kliknięcie” otwiera popup przy każdym kliknięciu.** Wcześniej działał najwyżej raz na sesję karty, a po zamknięciu popupu blokował go też czas powtórzenia (puste = na zawsze), więc przycisk typu „Pobierz poradnik” po pierwszym zamknięciu przestawał działać, także po odświeżeniu strony. Kliknięcie to jawna prośba odwiedzającego, więc czas powtórzenia, zasada „raz na wizytę” i limit wyświetleń dotyczą teraz tylko wyzwalaczy automatycznych.
+- **Kliknięcie przed doczytaniem `main.js` nie ginie** (np. pierwsze dotknięcie przycisku na telefonie). Selektory kliknięć opublikowanych popupów są w `ncData.clickSelectors` (opcja `nc_click_selectors`, przeliczana przy zapisie powiadomienia), loader zapamiętuje takie kliknięcie i popup otwiera się po załadowaniu. Gdy na danej stronie żaden popup nie pasuje, zatrzymana kotwica jest wykonywana.
+- Kliknięcie w selektor będący kotwicą na tej samej stronie (`href="#sekcja"`) otwiera popup zamiast przewijać; bez JS link nadal przewija do sekcji.
+
 ## [1.10.3] - 2026-09-24
 ### Security
 - **Zarządzanie powiadomieniami domyślnie tylko dla administratora** (`manage_options`). Wcześniej każdy z `edit_posts` (np. Autor, Kierownik sklepu) mógł opublikować popup widoczny dla wszystkich, w trybie raw także z własnym CSS. Wszystkie uprawnienia typu wpisu mapują się na filtr `nc_manage_capability`; strony, gdzie powiadomieniami zarządzają redaktorzy, mogą go rozszerzyć (np. `edit_others_posts`).
