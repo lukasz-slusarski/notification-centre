@@ -223,6 +223,7 @@ class NC_Metaboxes {
                             <input type="checkbox" name="nc_trigger_click" value="1" <?php checked($trigger_click, '1'); ?>>
                             <strong>Kliknięcie</strong> - po kliknięciu w element:
                             <input type="text" name="nc_trigger_click_selector" value="<?php echo esc_attr($trigger_click_selector); ?>" placeholder=".my-button, #special-link" style="width:200px">
+                            <span class="description">otwiera się przy każdym kliknięciu, także po zamknięciu (bez limitu powtórzeń)</span>
                         </label>
                     </div>
                 </div>

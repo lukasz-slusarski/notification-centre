@@ -242,6 +242,7 @@
 
     // Behavioral Trigger System
     let triggerNotifications = []; // Notifications waiting for triggers
+    let clickNotifications = []; // Popups opened by a click on their selector (every click, see openOnClick)
     let triggersFired = {}; // Track which triggers have fired for each notification
     let lastActivityTime = Date.now(); // For inactivity tracking
     let pageLoadTime = Date.now(); // For time on page tracking
@@ -1100,6 +1101,7 @@
         // Reset queues
         floatingQueue = [];
         triggerNotifications = [];
+        clickNotifications = [];
 
         notifications.forEach((n) => {
             const val = n.settings.show_as_floating;
@@ -1107,6 +1109,11 @@
 
             if (!isFloating) return;
             if (countdownCutOffPassed(n)) return;
+
+            // Registered before the session/dismissal checks below: a click must open the
+            // popup also after it was closed or already shown in this visit.
+            const clickTriggers = n.settings.triggers || {};
+            if (clickTriggers.click && clickTriggers.click_selector) clickNotifications.push(n);
 
             if (shownSessionIds.includes(n.id)) {
                 ncLog(`NC: ID ${n.id} already shown this session, skipping`);
@@ -1159,9 +1166,10 @@
         ncLog('NC: Trigger notifications:', triggerNotifications.length);
 
         // Initialize trigger listeners if we have trigger notifications
-        if (triggerNotifications.length > 0 && !triggerListenersInitialized) {
+        if ((triggerNotifications.length > 0 || clickNotifications.length > 0) && !triggerListenersInitialized) {
             initTriggerListeners();
         }
+        replayPendingClick();
 
         // Show first notification from queue (if nothing is currently active)
         showNextFromGlobalQueue();
@@ -1227,19 +1235,56 @@
 
         // Click Trigger - delegate listener
         document.addEventListener('click', (e) => {
-            triggerNotifications.forEach(n => {
-                const triggers = n.settings.triggers || {};
-                if (triggers.click && triggers.click_selector && !triggersFired[n.id]) {
-                    let hit = false;
-                    // An invalid selector typed in the admin must not break every click.
-                    try { hit = !!(e.target.closest && e.target.closest(triggers.click_selector)); } catch (err) { hit = false; }
-                    if (hit) {
-                        ncLog(`NC: Click trigger matched for ID ${n.id}`);
-                        fireTriggerNotification(n, 'click');
-                    }
-                }
+            clickNotifications.forEach(n => {
+                const hit = matchClickSelector(e.target, n);
+                if (!hit) return;
+                ncLog(`NC: Click trigger matched for ID ${n.id}`);
+                // An in-page anchor (e.g. a button with href="#section") opens the popup
+                // instead of jumping; without JS it still scrolls to the section.
+                if (hit.matches('a[href^="#"]')) e.preventDefault();
+                openOnClick(n);
             });
         });
+        window.ncClickReady = true;
+    }
+
+    function matchClickSelector(target, n) {
+        const sel = (n.settings.triggers || {}).click_selector;
+        if (!sel || !target || !target.closest) return null;
+        // An invalid selector typed in the admin must not break every click.
+        try { return target.closest(sel); } catch (err) { return null; }
+    }
+
+    // A click on the selector is an explicit request, so the popup opens on every click:
+    // also after it was closed or already shown in this visit. Repeat time, the
+    // once-per-session rule and the impression cap apply to automatic triggers only.
+    function openOnClick(n) {
+        if (activeFloatingId === n.id || document.querySelector(`.nc-floating[data-id="${n.id}"]`)) return;
+        triggersFired[n.id] = true;
+        n._ncFiredBy = 'click';
+        n._ncForced = true;
+        floatingQueue = floatingQueue.filter(q => q.id !== n.id);
+        floatingQueue.unshift(n);
+        showNextFromGlobalQueue();
+    }
+
+    // Click on a selector before main.js and the notifications were loaded (the loader
+    // records it, see render_front_loader). Replayed once; if no popup on this page
+    // matches, the in-page anchor the loader stopped is followed after all.
+    function replayPendingClick() {
+        const p = window.ncPendingClick;
+        if (!p) return;
+        window.ncPendingClick = null;
+        if (Date.now() - p.t > 10000) return;
+        let opened = false;
+        clickNotifications.forEach(n => {
+            if (matchClickSelector(p.el, n)) { openOnClick(n); opened = true; }
+        });
+        if (!opened && p.prevented) {
+            const a = p.el.closest && p.el.closest('a[href^="#"]');
+            const target = a && a.hash.length > 1 ? document.getElementById(decodeURIComponent(a.hash.slice(1))) : null;
+            if (target) target.scrollIntoView({ behavior: 'smooth' });
+        }
     }
 
     function checkTrigger(triggerType, value) {
@@ -1303,9 +1348,9 @@
         // Skip dismissed/already-shown items in queue
         while (floatingQueue.length > 0) {
             const peek = floatingQueue[0];
-            if (shownSessionIds.includes(peek.id) ||
+            if (!peek._ncForced && (shownSessionIds.includes(peek.id) ||
                 isDismissed(peek.id, dismissedToastIds, peek.settings.repeat_val, peek.settings.repeat_unit) ||
-                checkImpressionCap(peek)) {
+                checkImpressionCap(peek))) {
                 ncLog(`NC: Skipping ID ${peek.id} in queue (already shown, dismissed, or capped)`);
                 floatingQueue.shift();
                 continue;
@@ -1352,7 +1397,7 @@
         const isRaw = n.content_mode === 'raw';
 
         // Final guard: check if dismissed or capped (race condition protection)
-        if (isDismissed(n.id, dismissedToastIds, n.settings.repeat_val, n.settings.repeat_unit) || checkImpressionCap(n)) {
+        if (!n._ncForced && (isDismissed(n.id, dismissedToastIds, n.settings.repeat_val, n.settings.repeat_unit) || checkImpressionCap(n))) {
             ncLog(`NC: ID ${n.id} was dismissed or capped, skipping and showing next`);
             activeFloatingId = null;
             setTimeout(() => showNextFromGlobalQueue(), 50);
@@ -1392,6 +1437,7 @@
             setTimeout(() => showNextFromGlobalQueue(), 50);
             return;
         }
+        n._ncForced = false;
 
         // Track in session (persisted to sessionStorage with cache version)
         if (!shownSessionIds.includes(n.id)) {

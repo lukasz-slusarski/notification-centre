@@ -3,7 +3,7 @@
  * Plugin Name: Notification Centre
  * Plugin URI:  https://agencyjnie.pl
  * Description: Advanced on-site notification center with OneSignal integration.
- * Version:     1.10.3
+ * Version:     1.10.4
  * Author:      important.is
  * Requires at least: 5.8
  * Requires PHP: 7.4
@@ -15,7 +15,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Define Constants
-define( 'NC_VERSION', '1.10.3' );
+define( 'NC_VERSION', '1.10.4' );
 define( 'NC_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'NC_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 
@@ -342,6 +342,9 @@ class Notification_Centre {
             'wooNotifications' => class_exists( 'WooCommerce' ) && get_option( 'nc_woo_enabled', '1' ) === '1',
             'fluentForms' => $this->fluent_config,
             'ssrTopbar' => (bool) $this->get_ssr_topbar(),
+            // Click-trigger selectors of published popups, so the loader can catch a click
+            // that comes before main.js (e.g. a tap on mobile) instead of losing it.
+            'clickSelectors' => $this->click_selectors(),
             // Logged-in pages are never in the shared page cache, so this flag is safe here.
             'isCustomer' => NC_Logic::is_customer( get_current_user_id() ),
             'rotation' => self::rotation_limits(),
@@ -742,7 +745,7 @@ class Notification_Centre {
      * ncData plus a ~0.5 KB loader. The loader injects style.css and main.js on the first
      * mousemove / pointer / touch / key / wheel / scroll, and records the first input that
      * ends LCP (window.ncFirstInput) so main.js knows it already happened. A click on the
-     * bell before main.js is ready is replayed once it is.
+     * bell, or on a popup's click-trigger selector, before main.js is ready is replayed once it is.
      */
     public function render_front_loader() {
         if ( ! $this->front_data || $this->should_skip_frontend() ) return;
@@ -753,7 +756,8 @@ class Notification_Centre {
 function load(){if(done)return;done=true;L.forEach(function(t){w.removeEventListener(t,load,o)});var a=w.ncData.assets,l=d.createElement('link');l.rel='stylesheet';l.href=a.css;l.onload=function(){d.documentElement.classList.add('nc-css')};d.head.appendChild(l);var s=d.createElement('script');s.src=a.js;s.async=true;d.body.appendChild(s)}
 function input(){if(!w.ncFirstInput)w.ncFirstInput=Date.now();I.forEach(function(t){w.removeEventListener(t,input,o)})}
 I.forEach(function(t){w.addEventListener(t,input,o)});L.forEach(function(t){w.addEventListener(t,load,o)});
-d.addEventListener('click',function(e){if(!w.ncMainReady&&e.target.closest&&e.target.closest('#nc-bell-container')){w.ncPendingBell=true;e.preventDefault()}},true)})(window,document);</script>
+d.addEventListener('click',function(e){if(!e.target.closest)return;if(!w.ncMainReady&&e.target.closest('#nc-bell-container')){w.ncPendingBell=true;e.preventDefault();return}
+var S=w.ncData.clickSelectors,el=null;if(w.ncClickReady||!S||!S.length)return;try{el=e.target.closest(S.join(','))}catch(x){}if(!el)return;var p={el:e.target,t:Date.now(),prevented:false};if(el.matches('a[href^="#"]')){e.preventDefault();p.prevented=true}w.ncPendingClick=p},true)})(window,document);</script>
         <?php
     }
 
@@ -772,6 +776,29 @@ d.addEventListener('click',function(e){if(!w.ncMainReady&&e.target.closest&&e.ta
             update_option( 'nc_customer_audience_used', $used, false );
         }
         return $used === '1';
+    }
+
+    private function click_selectors() {
+        $sel = get_option( 'nc_click_selectors', null );
+        if ( ! is_array( $sel ) ) {
+            $sel = $this->scan_click_selectors();
+            update_option( 'nc_click_selectors', $sel, false );
+        }
+        return $sel;
+    }
+
+    private function scan_click_selectors() {
+        $q = new WP_Query( [
+            'post_type' => 'nc_notification', 'post_status' => 'publish', 'posts_per_page' => -1,
+            'fields' => 'ids', 'no_found_rows' => true,
+            'meta_query' => [ [ 'key' => 'nc_trigger_click', 'value' => '1' ] ],
+        ] );
+        $sel = [];
+        foreach ( $q->posts as $id ) {
+            $s = trim( (string) get_post_meta( $id, 'nc_trigger_click_selector', true ) );
+            if ( $s !== '' ) $sel[] = $s;
+        }
+        return array_values( array_unique( $sel ) );
     }
 
     private function scan_customer_audience() {
@@ -878,6 +905,7 @@ if(run()||!mark)return;var n=0,t=setInterval(function(){if(run()||++n>300)clearI
         update_option( 'nc_gravityform_ids', $gravity, false );
 
         update_option( 'nc_customer_audience_used', $this->scan_customer_audience(), false );
+        update_option( 'nc_click_selectors', $this->scan_click_selectors(), false );
 
         // Drop any stale short-lived transient fallbacks so they can't shadow the fresh options.
         delete_transient( 'nc_fluentform_ids' );
