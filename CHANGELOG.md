@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.10.5] - 2026-11-06
+
+- Customer marker reads marketing consent from the important-consent banner (`cc_cookie`); GetTerms localStorage stays as a fallback. Before this, with the new banner the marker was never set or removed.
+
 ## [1.10.4] - 2026-10-16
 ### Fixed
 - **Wyzwalacz „Kliknięcie” otwiera popup przy każdym kliknięciu.** Wcześniej działał najwyżej raz na sesję karty, a po zamknięciu popupu blokował go też czas powtórzenia (puste = na zawsze), więc przycisk typu „Pobierz poradnik” po pierwszym zamknięciu przestawał działać, także po odświeżeniu strony. Kliknięcie to jawna prośba odwiedzającego, więc czas powtórzenia, zasada „raz na wizytę” i limit wyświetleń dotyczą teraz tylko wyzwalaczy automatycznych.

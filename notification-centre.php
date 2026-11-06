@@ -3,7 +3,7 @@
  * Plugin Name: Notification Centre
  * Plugin URI:  https://agencyjnie.pl
  * Description: Advanced on-site notification center with OneSignal integration.
- * Version:     1.10.4
+ * Version:     1.10.5
  * Author:      important.is
  * Requires at least: 5.8
  * Requires PHP: 7.4
@@ -15,7 +15,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Define Constants
-define( 'NC_VERSION', '1.10.4' );
+define( 'NC_VERSION', '1.10.5' );
 define( 'NC_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'NC_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 
@@ -813,7 +813,7 @@ var S=w.ncData.clickSelectors,el=null;if(w.ncClickReady||!S||!S.length)return;tr
     /**
      * Customer marker for the "customers only" audience: cookie nc_customer=1 for a year,
      * set on the order-received page and for logged-in customers, and only with consent
-     * (Marketing: the marker exists to target promotions) in the GetTerms banner; removed
+     * (Marketing: the marker exists to target promotions) in the important-consent banner (cc_cookie, GetTerms as fallback); removed
      * when that consent is withdrawn.
      * Without a known consent record nothing is set. The removal-only variant is static,
      * so it is safe on publicly cached pages.
@@ -824,7 +824,8 @@ var S=w.ncData.clickSelectors,el=null;if(w.ncClickReady||!S||!S.length)return;tr
             || NC_Logic::is_customer( get_current_user_id() );
         ?>
 <script id="nc-customer-flag">(function(mark){var N='nc_customer',L='wdf_klient';
-function consent(){try{var c=JSON.parse(localStorage.getItem('getterms_cookie_consent')||'null');if(!c||!c.cookie_preferences)return null;var p=c.cookie_preferences;return !!p.Marketing}catch(e){return null}}
+function consent(){var m=document.cookie.match(/(?:^|;\s*)cc_cookie=([^;]*)/);if(m){try{var k=JSON.parse(decodeURIComponent(m[1]));if(k&&k.categories&&k.categories.indexOf)return k.categories.indexOf('marketing')!==-1}catch(e){}return null}
+try{var c=JSON.parse(localStorage.getItem('getterms_cookie_consent')||'null');if(!c||!c.cookie_preferences)return null;var p=c.cookie_preferences;return !!p.Marketing}catch(e){return null}}
 function has(n){return document.cookie.indexOf(n+'=1')!==-1}
 function del(n){document.cookie=n+'=; max-age=0; path=/; SameSite=Lax; Secure'}
 function run(){var ok=consent();if(ok===false){if(has(N))del(N);if(has(L))del(L);return true}
