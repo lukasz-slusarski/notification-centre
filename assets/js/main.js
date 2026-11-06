@@ -277,7 +277,8 @@
     }
     function trackEvent(notificationId, eventType) {
         if (!notificationId) return;
-        eventQueue.push({ notification_id: notificationId, event_type: eventType, page_url: window.location.href });
+        // Without the query string: campaign and click IDs (gclid, fbclid, utm_*) are not ours to store.
+        eventQueue.push({ notification_id: notificationId, event_type: eventType, page_url: window.location.origin + window.location.pathname });
         if (eventQueue.length >= EVENT_BATCH_MAX) { flushEvents(); return; }
         if (!eventFlushTimer) eventFlushTimer = setTimeout(flushEvents, 10000);
     }

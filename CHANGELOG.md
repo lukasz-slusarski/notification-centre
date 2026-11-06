@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.10.6] - 2026-11-06
+
+- Impression and click events store the page address without the query string and fragment (in the browser and again on the server), so click and campaign IDs (`gclid`, `fbclid`, `utm_*`) never land in the analytics table.
+
 ## [1.10.5] - 2026-11-06
 
 - Customer marker reads marketing consent from the important-consent banner (`cc_cookie`); GetTerms localStorage stays as a fallback. Before this, with the new banner the marker was never set or removed.

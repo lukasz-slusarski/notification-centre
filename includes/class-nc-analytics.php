@@ -161,7 +161,7 @@ class NC_Analytics {
 				'event_type'      => sanitize_text_field( $event_type ),
 				'user_id'         => absint( $user_id ),
 				'session_id'      => sanitize_text_field( $session_id ),
-				'page_url'        => esc_url_raw( $page_url ),
+				'page_url'        => esc_url_raw( preg_replace( '/[?#].*$/s', '', (string) $page_url ) ),
 				'created_at'      => current_time( 'mysql' ),
 			],
 			[ '%d', '%s', '%d', '%s', '%s', '%s' ]
